@@ -1,0 +1,93 @@
+---
+title: "Progressive ILD RBC Chemical Shift"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(openintro)
+library(janitor)
+```
+
+```{r}
+#Read In CSVs
+"007s_data" <- read_csv("/Users/anuraganugu/Documents/spectroscopy_combined_007s.csv")
+"009s_data" <- read_csv("/Users/anuraganugu/Documents/spectroscopy_combined_009s.csv")
+```
+
+```{r}
+#Remove the S1s and S2s from the csv that are incorrect
+`007s_data_cleaned` <- `007s_data` %>%
+  slice(-c(78, 80, 81, 83))
+```
+
+
+```{r}
+#Filter out S2 scans
+`007s_data_cleaned` <- `007s_data_cleaned`|>
+  filter(!grepl("s2", subject_id, ignore.case = TRUE))
+```
+
+```{r}
+#Remove string S1
+`007s_data_cleaned` <- `007s_data_cleaned` |>
+  mutate(subject_id = str_remove(subject_id, "_s1"), subject_id = str_remove(subject_id, "_S1"))
+```
+
+```{r}
+#Combine dataframes
+combined_spect_data <- bind_rows(`007s_data_cleaned`, `009s_data`)
+```
+
+```{r}
+#Create Timepoint and Subject Variable
+combined_spect_data_cleaned <- combined_spect_data |>
+  mutate(
+    timepoint = case_when(
+      str_detect(subject_id, "A$") ~ "3 Months",
+      str_detect(subject_id, "B$") ~ "6 Months",
+      str_detect(subject_id, "C$") ~ "12 Months",
+      TRUE ~ "Baseline"
+    ),
+    timepoint = factor(
+      timepoint,
+      levels = c("Baseline", "3 Months", "6 Months", "12 Months")
+    )
+  ) |>
+  relocate(timepoint, .after = 1) |>
+  mutate(subject = str_remove(subject_id, "[ABC]$")) |>
+  relocate(subject, .after = 1) 
+```
+
+```{r}
+#Remove outlier with abnormal RBC shift
+combined_data_no_outlier <- combined_spect_data_cleaned |>
+  slice(-c(306))
+```
+
+```{r}
+#Summary Statistics (no outlier)
+combined_data_no_outlier |>
+  group_by(timepoint) |>
+  summarize(
+    n = n(),
+    mean = mean(rbc_shift, na.rm = TRUE),
+    sd = sd(rbc_shift, na.rm = TRUE),
+    median = median(rbc_shift, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Make boxplot (no outlier)
+ggplot(combined_data_no_outlier, aes(timepoint, rbc_shift)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.5) +
+  labs(
+    x = "Timepoint",
+    y = "RBC Shift",
+    title = "RBC Shift Across Treatment Timepoints"
+  ) +
+  theme_bw()
+```
