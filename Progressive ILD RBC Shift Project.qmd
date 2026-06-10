@@ -36,6 +36,12 @@ library(janitor)
 ```
 
 ```{r}
+#Remove subjects that are part of the control group
+`007s_data_filtered` <- `007s_data_filtered` |>
+  slice(-c(1, 2, 14, 15, 16, 17, 32, 33, 34, 35, 73, 74, 75, 81, 82, 83, 84, 93, 94, 95, 96, 97, 98, 99, 100, 104))
+```
+
+```{r}
 #Remove outlier with abnormal RBC shift
 `009s_data_filtered` <- `009s_data` |>
   slice(-c(202))
@@ -147,7 +153,6 @@ b_and_3m_wide|>
   )
 ```
 
-
 ```{r}
 #Create histogram for the delta
 ggplot(b_and_3m_wide, aes(x = delta_rbc_shift)) +
@@ -158,6 +163,7 @@ ggplot(b_and_3m_wide, aes(x = delta_rbc_shift)) +
     x = "Delta RBC Shift",
   )
 ```
+
 ```{r}
 #Create Q-Q plot to see if it follows a normal distribution
 qqnorm(b_and_3m_wide$delta_rbc_shift)
@@ -168,6 +174,3 @@ qqline(b_and_3m_wide$delta_rbc_shift)
 #paired t-test where average change is comparaed to 0
 t.test(b_and_3m_wide$delta_rbc_shift, mu = 0)
 ```
-
-
-
