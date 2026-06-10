@@ -19,31 +19,36 @@ library(janitor)
 
 ```{r}
 #Remove the S1s and S2s from the csv that are incorrect
-`007s_data_cleaned` <- `007s_data` %>%
+`007s_data_filtered` <- `007s_data` |>
   slice(-c(78, 80, 81, 83))
 ```
 
-
 ```{r}
 #Filter out S2 scans
-`007s_data_cleaned` <- `007s_data_cleaned`|>
+`007s_data_filtered` <- `007s_data_filtered`|>
   filter(!grepl("s2", subject_id, ignore.case = TRUE))
 ```
 
 ```{r}
 #Remove string S1
-`007s_data_cleaned` <- `007s_data_cleaned` |>
+`007s_data_filtered` <- `007s_data_filtered` |>
   mutate(subject_id = str_remove(subject_id, "_s1"), subject_id = str_remove(subject_id, "_S1"))
 ```
 
 ```{r}
+#Remove outlier with abnormal RBC shift
+`009s_data_filtered` <- `009s_data` |>
+  slice(-c(202))
+```
+
+```{r}
 #Combine dataframes
-combined_spect_data <- bind_rows(`007s_data_cleaned`, `009s_data`)
+combined_spect_data <- bind_rows(`007s_data_filtered`, `009s_data_filtered`)
 ```
 
 ```{r}
 #Create Timepoint and Subject Variable
-combined_spect_data_cleaned <- combined_spect_data |>
+combined_spect_data_transformed <- combined_spect_data |>
   mutate(
     timepoint = case_when(
       str_detect(subject_id, "A$") ~ "3 Months",
@@ -62,14 +67,8 @@ combined_spect_data_cleaned <- combined_spect_data |>
 ```
 
 ```{r}
-#Remove outlier with abnormal RBC shift
-combined_data_no_outlier <- combined_spect_data_cleaned |>
-  slice(-c(306))
-```
-
-```{r}
-#Summary Statistics (no outlier)
-combined_data_no_outlier |>
+#Summary Statistics
+combined_spect_data_transformed |>
   group_by(timepoint) |>
   summarize(
     n = n(),
@@ -80,8 +79,8 @@ combined_data_no_outlier |>
 ```
 
 ```{r}
-#Make boxplot (no outlier)
-ggplot(combined_data_no_outlier, aes(timepoint, rbc_shift)) +
+#Make side-by-side boxplots
+ggplot(combined_spect_data_transformed, aes(timepoint, rbc_shift)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.5) +
   labs(
@@ -91,3 +90,5 @@ ggplot(combined_data_no_outlier, aes(timepoint, rbc_shift)) +
   ) +
   theme_bw()
 ```
+
+
