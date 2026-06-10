@@ -91,4 +91,28 @@ ggplot(combined_spect_data_transformed, aes(timepoint, rbc_shift)) +
   theme_bw()
 ```
 
+```{r}
+#Make dataset needed for analysis between just baseline and 3 months
+combined_spect_data_b_and_3m <- combined_spect_data_transformed |>
+  filter(timepoint %in% c("Baseline", "3 Months")) |>
+  group_by(subject) |>
+  filter(all(c("Baseline", "3 Months") %in% timepoint)) |>
+  ungroup()
+```
+
+```{r}
+#Make spaghetti plot for baseline and 3 months
+ggplot(combined_spect_data_b_and_3m,
+       aes(x = timepoint,
+           y = rbc_shift,
+           group = subject)) +
+  geom_line(alpha = 0.2) +
+  geom_point(alpha = 0.5) +
+  theme_bw() +
+  labs(
+    title = "RBC Shift: Baseline vs 3 Months",
+    x = "",
+    y = "RBC Shift"
+  )
+```
 
