@@ -116,3 +116,58 @@ ggplot(combined_spect_data_b_and_3m,
   )
 ```
 
+```{r}
+#Pivot dataset wider
+b_and_3m_wide <- combined_spect_data_b_and_3m |>
+  select(subject, timepoint, rbc_shift) |>
+  pivot_wider(
+    id_cols = subject,
+    names_from = timepoint,
+    values_from = rbc_shift
+  )
+```
+
+```{r}
+#Create new variable called delta rbc shift (3 months-baseline)
+b_and_3m_wide <- b_and_3m_wide |>
+  mutate(
+    delta_rbc_shift = `3 Months` - Baseline
+  )
+```
+
+```{r}
+#Get summary statistics for the delta_rbc
+b_and_3m_wide|>
+  select(delta_rbc_shift) |>
+  summarize(
+    n = n(),
+    mean = mean(delta_rbc_shift, na.rm = TRUE),
+    sd = sd(delta_rbc_shift, na.rm = TRUE),
+    median = median(delta_rbc_shift, na.rm = TRUE)
+  )
+```
+
+
+```{r}
+#Create histogram for the delta
+ggplot(b_and_3m_wide, aes(x = delta_rbc_shift)) +
+  geom_histogram(bins = 15) +
+  theme_bw() +
+  labs(
+    title = "Distribution of Delta RBC Shift",
+    x = "Delta RBC Shift",
+  )
+```
+```{r}
+#Create Q-Q plot to see if it follows a normal distribution
+qqnorm(b_and_3m_wide$delta_rbc_shift)
+qqline(b_and_3m_wide$delta_rbc_shift)
+```
+
+```{r}
+#paired t-test where average change is comparaed to 0
+t.test(b_and_3m_wide$delta_rbc_shift, mu = 0)
+```
+
+
+
