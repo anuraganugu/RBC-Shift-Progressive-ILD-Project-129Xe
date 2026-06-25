@@ -42,9 +42,9 @@ library(janitor)
 ```
 
 ```{r}
-#Remove outlier with abnormal RBC shift
+#Remove outlier with abnormal RBC shift or that don't have GX scan
 `009s_data_filtered` <- `009s_data` |>
-  slice(-c(202))
+  slice(-c(173, 202))
 ```
 
 ```{r}
@@ -156,7 +156,7 @@ b_and_3m_wide|>
 ```{r}
 #Create histogram for the delta
 ggplot(b_and_3m_wide, aes(x = delta_rbc_shift)) +
-  geom_histogram(bins = 15) +
+  geom_histogram(bins = 10) +
   theme_bw() +
   labs(
     title = "Distribution of Delta RBC Shift",
@@ -174,3 +174,170 @@ qqline(b_and_3m_wide$delta_rbc_shift)
 #paired t-test where average change is comparaed to 0
 t.test(b_and_3m_wide$delta_rbc_shift, mu = 0)
 ```
+
+```{r}
+#Read in GX CSV
+gx_combined <- read_csv("/Users/anuraganugu/Documents/gx_combined_007s_009s.csv")
+```
+
+```{r}
+#Remove string S1
+gx_combined <- gx_combined |>
+  mutate(subject_id = str_remove(subject_id, "_s1"), subject_id = str_remove(subject_id, "_S1"))
+```
+
+```{r}
+#Create Timepoint and Subject Variable
+gx_combined_transformed <- gx_combined |>
+  mutate(
+    timepoint = case_when(
+      str_detect(subject_id, "A$") ~ "3 Months",
+      str_detect(subject_id, "B$") ~ "6 Months",
+      str_detect(subject_id, "C$") ~ "12 Months",
+      TRUE ~ "Baseline"
+    ),
+    timepoint = factor(
+      timepoint,
+      levels = c("Baseline", "3 Months", "6 Months", "12 Months")
+    )
+  ) |>
+  relocate(timepoint, .after = 1) |>
+  mutate(subject = str_remove(subject_id, "[ABC]$")) |>
+  relocate(subject, .after = 1) 
+```
+
+```{r}
+#Summary Statistics
+gx_combined_transformed |>
+  group_by(timepoint) |>
+  summarize(
+    n = n(),
+    mean = mean(membrane_mean, na.rm = TRUE),
+    sd = sd(membrane_mean, na.rm = TRUE),
+    median = median(membrane_mean, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Make side-by-side boxplots
+ggplot(gx_combined_transformed, aes(timepoint, membrane_mean)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.5) +
+  labs(
+    x = "Timepoint",
+    y = "Membrane Mean",
+    title = "Membrane Mean"
+  ) +
+  theme_bw()
+```
+
+```{r}
+#Make dataset needed for analysis between just baseline and 3 months
+gx_data_b_and_3m <- gx_combined_transformed |>
+  filter(timepoint %in% c("Baseline", "3 Months")) |>
+  group_by(subject) |>
+  filter(all(c("Baseline", "3 Months") %in% timepoint)) |>
+  ungroup()
+```
+
+```{r}
+#Make spaghetti plot for baseline and 3 months
+ggplot(gx_data_b_and_3m,
+       aes(x = timepoint,
+           y = membrane_mean,
+           group = subject)) +
+  geom_line(alpha = 0.2) +
+  geom_point(alpha = 0.5) +
+  theme_bw() +
+  labs(
+    title = "Membrane Mean: Baseline vs 3 Months",
+    x = "",
+    y = "Membrane Mean"
+  )
+```
+
+```{r}
+#Pivot dataset wider
+gx_b_and_3m_wide <- gx_data_b_and_3m |>
+  select(subject, timepoint, membrane_mean) |>
+  pivot_wider(
+    id_cols = subject,
+    names_from = timepoint,
+    values_from = membrane_mean
+  )
+```
+
+```{r}
+#Create new variable called delta membrane mean (3 months-baseline)
+gx_b_and_3m_wide <- gx_b_and_3m_wide |>
+  mutate(
+    delta_membrane_mean = `3 Months` - Baseline
+  )
+```
+
+```{r}
+#Get summary statistics for the delta membrane mean
+gx_b_and_3m_wide|>
+  select(delta_membrane_mean) |>
+  summarize(
+    n = n(),
+    mean = mean(delta_membrane_mean, na.rm = TRUE),
+    sd = sd(delta_membrane_mean, na.rm = TRUE),
+    median = median(delta_membrane_mean, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Create histogram for the delta
+ggplot(gx_b_and_3m_wide, aes(x = delta_membrane_mean)) +
+  geom_histogram(bins = 10) +
+  theme_bw() +
+  labs(
+    title = "Distribution of Delta Membrane Mean",
+    x = "Delta Membrane Mean",
+  )
+```
+
+```{r}
+#Create Q-Q plot to see if it follows a normal distribution
+qqnorm(gx_b_and_3m_wide$delta_membrane_mean)
+qqline(gx_b_and_3m_wide$delta_membrane_mean)
+```
+
+```{r}
+#paired t-test where average change is comparaed to 0
+t.test(gx_b_and_3m_wide$delta_membrane_mean, mu = 0)
+```
+
+```{r}
+#combine dataframes to get delta rbc and delta membrane
+combined_spect_gx_deltas <- b_and_3m_wide %>%
+  select(subject, delta_rbc_shift) %>%
+  left_join(
+    gx_b_and_3m_wide %>%
+      select(subject, delta_membrane_mean),
+    by = "subject"
+  )
+```
+
+```{r}
+#Plot the deltas
+ggplot(combined_spect_gx_deltas, aes(x = delta_rbc_shift, y = delta_membrane_mean)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    x = "Change in RBC Shift",
+    y = "Change in Membrane Mean",
+    title = "Relationship Between Changes in RBC Shift and Membrane Mean"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+#Get correlation coefficient
+cor.test(
+  combined_df$delta_rbc_shift,
+  combined_df$delta_membrane_mean
+)
+```
+
