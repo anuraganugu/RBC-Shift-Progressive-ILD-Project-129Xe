@@ -1,0 +1,50 @@
+---
+title: "Healthy Reference VC Calculations"
+format: html
+editor: visual
+---
+
+## 
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(openintro)
+library(janitor)
+```
+
+```{r}
+#read in the healthy reference cohort csv
+healthy_reference <- read_csv("/Users/anuraganugu/Documents/xe_healthy_reference_cohort.csv")
+```
+
+```{r}
+healthy_reference_filtered <- healthy_reference |>
+  filter(`Include (1=Yes 0 =No)` == 1)
+```
+
+```{r}
+#calculate vc/va ref and va ref
+healthy_reference_vc <- healthy_reference_filtered |> mutate(
+    vc_over_va_ref = 15.4 -
+      0.972 * (sex == "M") -
+      0.0391 * `Age (years)` -
+      0.000352 * `Age (years)`^2,
+    va_ref = if_else(
+      sex == "M",
+      -7.9 + 0.0387 * `Age (years)` + 0.0774 * height - 0.000442 * `Age (years)`^2,
+      -3.55 + 0.0391 * `Age (years)` + 0.0466 * height - 0.000426 * `Age (years)`^2
+    ))
+```
+
+```{r}
+#summarize mean and sd for vc/va ref and va ref
+healthy_reference_vc |> 
+  summarise(
+    vc_over_va_mean = mean(vc_over_va_ref, na.rm = TRUE),
+    vc_over_va_sd   = sd(vc_over_va_ref, na.rm = TRUE),
+    va_mean         = mean(va_ref, na.rm = TRUE),
+    va_sd           = sd(va_ref, na.rm = TRUE)
+  )
+```
+
