@@ -342,11 +342,6 @@ cor.test(
 ```
 
 ```{r}
-rcv_calculations <- read_csv("/Users/anuraganugu/Documents/rcv_calculations_with_predictions")
-```
-
-
-```{r}
 rcv_calculations_filled <- read_csv('/Users/anuraganugu/Documents/Relative Capillary Volume Calculations Filled.csv')
 ```
 
@@ -529,8 +524,8 @@ cor.test(
 ```
 
 ```{r}
-#Create tyvasorelative capillary volume calculation with method 1 (GLI)
-tyvaso_vc <- tyvaso_abbreviated |> 
+#Create tyvaso relative capillary volume calculation with method 1 (GLI)
+tyvaso_abbreviated_vc <- tyvaso_abbreviated |> 
   filter(age <= 80) |>
   mutate(ref_rbc_mean = case_when(
     xe_dissolved_offset_frequency == 218 ~ 0.0049,
@@ -557,13 +552,13 @@ tyvaso_vc <- tyvaso_abbreviated |>
 
 ```{r}
 #Make spaghetti plot for timepoints and relative vc
-ggplot(tyvaso_vc,
+ggplot(tyvaso_abbreviated_vc,
        aes(x = timepoint,
            y = relative_vc,
            group = subject,
            color = subject)) +
-  geom_line(alpha = 0.2) +
-  geom_point(alpha = 0.5) +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
   theme_bw() +
   labs(
     title = "Tyvaso Relative VC Timepoints",
@@ -574,17 +569,404 @@ ggplot(tyvaso_vc,
 
 ```{r}
 #Make spaghetti plot for timepoints and rbc shift
-ggplot(tyvaso_vc,
+ggplot(tyvaso_abbreviated_vc,
        aes(x = timepoint,
            y = rbc_shift,
            group = subject,
            color = subject)) +
-  geom_line(alpha = 0.2) +
-  geom_point(alpha = 0.5) +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
   theme_bw() +
   labs(
     title = "Tyvaso RBC Shift Timepoints",
     x = "",
     y = "RBC Shift"
   )
+```
+
+```{r}
+#relative vc method 2 calculations
+vc_both_methods <- vc_method_1 |>
+  mutate(
+    vc_over_VA_ref = 15.4 -
+      0.972 * (sex == "M") -
+      0.0391 * age -
+      0.000352 * age^2, 
+    vc_method_2 = vc_over_VA_ref * alveolar_volume * rbc_mean / ref_rbc_mean, ref_vc_method_2 = if_else(
+      sex == "M",
+      -23.8 + 0.645 * height - 0.00547 * age^2,
+      -13.8 + 0.527 * height - 0.00421 * age^2
+    ),
+    relative_vc_method_2 = vc_method_2/ ref_vc_method_2)
+```
+
+```{r}
+# Create Bland-Altman data
+ba_data <- vc_both_methods %>%
+  mutate(
+    mean = (relative_vc + relative_vc_method_2) / 2,
+    diff = relative_vc_method_2 - relative_vc
+  )
+
+# Calculate bias and limits of agreement
+bias <- mean(ba_data$diff, na.rm = TRUE)
+sd_diff <- sd(ba_data$diff, na.rm = TRUE)
+
+upper_loa <- bias + 1.96 * sd_diff
+lower_loa <- bias - 1.96 * sd_diff
+
+# Plot
+ggplot(ba_data, aes(x = mean, y = diff)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_hline(yintercept = bias,
+             color = "blue",
+             linewidth = 1) +
+  geom_hline(yintercept = upper_loa,
+             color = "red",
+             linetype = "dashed",
+             linewidth = 1) +
+  geom_hline(yintercept = lower_loa,
+             color = "red",
+             linetype = "dashed",
+             linewidth = 1) +
+  labs(
+    title = "Bland–Altman Plot",
+    x = "Mean of Relative VC Measurements",
+    y = "Difference (Munkholm - GLI)"
+  ) +
+  theme_classic(base_size = 14)
+```
+
+```{r}
+#Create Scatterplot
+ggplot(vc_both_methods,
+       aes(x = relative_vc,
+           y = relative_vc_method_2)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  coord_equal() +
+  labs(x = "Relative VC GLI",
+       y = "Relative VC Munkholm",
+       title = "GLI vs Munkholm Relative VC Methods")
+```
+
+```{r}
+#Correlation statistics for the methods
+cor.test(
+  vc_both_methods$relative_vc,
+  vc_both_methods$relative_vc_method_2
+)
+```
+
+```{r}
+#read in csv for tyvaso 99th percentile normalization
+tyvaso_99 <- read_csv("/Users/anuraganugu/Documents/tyvaso_gx_99th_percentile.csv")
+```
+
+```{r}
+#calculate VC using our new method and create timepoints for the subjects
+tyvaso_99_vc <- tyvaso_99 |>
+  filter(!subject_id %in% c(
+    "006-107_s3",
+    "006-108_s1",
+    "006-108_s3"
+  )) |>
+  mutate(ref_rbc_mean = case_when(
+    xe_dissolved_offset_frequency == 218 ~ 0.0049,
+    xe_dissolved_offset_frequency == 208 ~ 0.0048,
+    TRUE ~ NA_real_
+  )) |>
+  mutate(relative_vc = alveolar_volume * rbc_mean / 5.614594 / ref_rbc_mean) |>
+  filter(!is.na(relative_vc)) |>
+  mutate(
+    timepoint = case_when(
+      str_detect(subject_id, "s1") ~ "Baseline",
+      str_detect(subject_id, "s2") ~ "15 Min",
+      str_detect(subject_id, "s3") ~ "3 Hours",
+    ),
+    timepoint = factor(
+      timepoint,
+      levels = c("Baseline", "15 Min", "3 Hours")
+    )
+  ) |>
+  relocate(timepoint, .after = 1) |>
+  mutate(subject = sub("_s[123]$", "", subject_id)) |>
+  relocate(subject, .after = 1) 
+```
+
+```{r}
+#get summary statistics
+tyvaso_99_vc |> 
+  summarise(
+    vdp_mean = mean(vent_defect_pct, na.rm = TRUE),
+    vdp_sd   = sd(vent_defect_pct, na.rm = TRUE),
+    rbc_mean_mean         = mean(rbc_mean, na.rm = TRUE),
+    rbc_mean_sd           = sd(rbc_mean, na.rm = TRUE),
+    relative_vc_mean         = mean(relative_vc, na.rm = TRUE),
+    relative_vc_sd           = sd(relative_vc, na.rm = TRUE)
+  )
+```
+
+
+```{r}
+#Make spaghetti plot for timepoints and rbc shift
+ggplot(tyvaso_99_vc,
+       aes(x = timepoint,
+           y = rbc_shift,
+           group = subject,
+           color = subject)) +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  theme_bw() +
+  labs(
+    title = "Tyvaso RBC Shift Timepoints",
+    x = "",
+    y = "RBC Shift"
+  )
+```
+
+```{r}
+#Make spaghetti plot for timepoints and relative vc
+ggplot(tyvaso_99_vc,
+       aes(x = timepoint,
+           y = relative_vc,
+           group = subject,
+           color = subject)) +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  coord_cartesian(ylim = c(0, 0.9)) +
+  theme_bw() +
+  labs(
+    title = "Tyvaso Relative VC Timepoints (99th percentile)",
+    x = "",
+    y = "Relative VC"
+  )
+```
+
+```{r}
+#Plot global variables
+ggplot(tyvaso_99_vc, aes(x = rbc_shift, y = relative_vc)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    x = "RBC Shift",
+    y = "Relative VC",
+    title = "Relationship Between RBC Shift and Relative VC (99th percentile)"
+  ) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(0, 0.9)) 
+```
+
+```{r}
+#Get correlation coefficient
+cor.test(
+  tyvaso_99_vc$rbc_shift,
+  tyvaso_99_vc$relative_vc
+)
+```
+
+```{r}
+#read in csv for tyvaso mean anchor normalization
+tyvaso_ma <- read_csv("/Users/anuraganugu//Documents/tyvaso_gx_ma.csv")
+```
+
+```{r}
+#calculate VC using our new method and create timepoints for the subjects
+tyvaso_ma_vc <- tyvaso_ma |>
+  filter(!subject_id %in% c(
+    "006-107_s3_ma",
+    "006-108_s1_ma",
+    "006-108_s3_ma"
+  )) |>
+  mutate(ref_rbc_mean = case_when(
+    xe_dissolved_offset_frequency == 218 ~ 0.0049,
+    xe_dissolved_offset_frequency == 208 ~ 0.0048,
+    TRUE ~ NA_real_
+  )) |>
+  mutate(relative_vc = alveolar_volume * rbc_mean / 5.614594 / ref_rbc_mean) |>
+  filter(!is.na(relative_vc)) |>
+  mutate(
+    timepoint = case_when(
+      str_detect(subject_id, "s1") ~ "Baseline",
+      str_detect(subject_id, "s2") ~ "15 Min",
+      str_detect(subject_id, "s3") ~ "3 Hours",
+    ),
+    timepoint = factor(
+      timepoint,
+      levels = c("Baseline", "15 Min", "3 Hours")
+    )
+  ) |>
+  relocate(timepoint, .after = 1) |>
+  mutate(subject = sub("_s[123]_ma", "", subject_id)) |>
+  relocate(subject, .after = 1) 
+```
+
+```{r}
+#get summary statistics
+tyvaso_ma_vc |> 
+  summarise(
+    vdp_mean = mean(vent_defect_pct, na.rm = TRUE),
+    vdp_sd   = sd(vent_defect_pct, na.rm = TRUE),
+    rbc_mean_mean         = mean(rbc_mean, na.rm = TRUE),
+    rbc_mean_sd           = sd(rbc_mean, na.rm = TRUE),
+    relative_vc_mean         = mean(relative_vc, na.rm = TRUE),
+    relative_vc_sd           = sd(relative_vc, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Make spaghetti plot for timepoints and relative vc
+ggplot(tyvaso_ma_vc,
+       aes(x = timepoint,
+           y = relative_vc,
+           group = subject,
+           color = subject)) +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  coord_cartesian(ylim = c(0, 0.9)) +
+  theme_bw() +
+  labs(
+    title = "Tyvaso Relative VC Timepoints (Mean Anchor)",
+    x = "",
+    y = "Relative VC"
+  )
+```
+
+```{r}
+#Plot global variables
+ggplot(tyvaso_ma_vc, aes(x = rbc_shift, y = relative_vc)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    x = "RBC Shift",
+    y = "Relative VC",
+    title = "Relationship Between RBC Shift and Relative VC (Mean Anchor)"
+  ) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(0, 0.9)) 
+```
+
+```{r}
+#Get correlation coefficient
+cor.test(
+  tyvaso_ma_vc$rbc_shift,
+  tyvaso_ma_vc$relative_vc
+)
+```
+
+```{r}
+#read in csv for tyvaso mean anchor normalization no biasfield key
+tyvaso_ma_no_biasfieldkey <- read_csv("/Users/anuraganugu//Documents/tyvaso_gx_ma_no_biasfieldkey.csv")
+```
+
+```{r}
+#calculate VC using our new method and create timepoints for the subjects
+tyvaso_ma_no_biasfieldkey_vc <- tyvaso_ma_no_biasfieldkey |>
+  filter(!subject_id %in% c(
+    "006-107_s3_ma_no_biasfieldkey",
+    "006-108_s1_ma_no_biasfieldkey",
+    "006-108_s3_ma_no_biasfieldkey"
+  )) |>
+  mutate(ref_rbc_mean = case_when(
+    xe_dissolved_offset_frequency == 218 ~ 0.0049,
+    xe_dissolved_offset_frequency == 208 ~ 0.0048,
+    TRUE ~ NA_real_
+  )) |>
+  mutate(relative_vc = alveolar_volume * rbc_mean / 5.614594 / ref_rbc_mean) |>
+  filter(!is.na(relative_vc)) |>
+  mutate(
+    timepoint = case_when(
+      str_detect(subject_id, "s1") ~ "Baseline",
+      str_detect(subject_id, "s2") ~ "15 Min",
+      str_detect(subject_id, "s3") ~ "3 Hours",
+    ),
+    timepoint = factor(
+      timepoint,
+      levels = c("Baseline", "15 Min", "3 Hours")
+    )
+  ) |>
+  relocate(timepoint, .after = 1) |>
+  mutate(subject = sub("_s[123]_ma_no_biasfieldkey", "", subject_id)) |>
+  relocate(subject, .after = 1) 
+```
+
+```{r}
+#get summary statistics
+tyvaso_ma_no_biasfieldkey_vc |> 
+  summarise(
+    vdp_mean = mean(vent_defect_pct, na.rm = TRUE),
+    vdp_sd   = sd(vent_defect_pct, na.rm = TRUE),
+    rbc_mean_mean         = mean(rbc_mean, na.rm = TRUE),
+    rbc_mean_sd           = sd(rbc_mean, na.rm = TRUE),
+    relative_vc_mean         = mean(relative_vc, na.rm = TRUE),
+    relative_vc_sd           = sd(relative_vc, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Make spaghetti plot for timepoints and relative vc
+ggplot(tyvaso_ma_no_biasfieldkey_vc,
+       aes(x = timepoint,
+           y = relative_vc,
+           group = subject,
+           color = subject)) +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  coord_cartesian(ylim = c(0, 0.9)) +
+  theme_bw() +
+  labs(
+    title = "Tyvaso Relative VC Timepoints (Mean Anchor No Biasfield Key)",
+    x = "",
+    y = "Relative VC"
+  )
+```
+
+```{r}
+#Plot global variables
+ggplot(tyvaso_ma_no_biasfieldkey_vc, aes(x = rbc_shift, y = relative_vc)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    x = "RBC Shift",
+    y = "Relative VC",
+    title = "Relationship Between RBC Shift and Relative VC (Mean Anchor No Biasfield Key)"
+  ) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(0, 0.9)) 
+```
+
+```{r}
+#Get correlation coefficient
+cor.test(
+  tyvaso_ma_no_biasfieldkey_vc$rbc_shift,
+  tyvaso_ma_no_biasfieldkey_vc$relative_vc
+)
 ```
