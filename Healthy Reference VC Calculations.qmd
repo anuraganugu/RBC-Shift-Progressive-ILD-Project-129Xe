@@ -15,7 +15,7 @@ library(janitor)
 
 ```{r}
 #read in the healthy reference cohort csv
-healthy_reference <- read_csv("/Users/anuraganugu/Documents/xe_healthy_reference_cohort.csv")
+healthy_reference <- read_csv("/Users/anuraganugu/Documents/xe_gx_healthy_reference_cohort.csv")
 ```
 
 ```{r}
@@ -24,7 +24,7 @@ healthy_reference_filtered <- healthy_reference |>
 ```
 
 ```{r}
-#calculate vc/va ref and va ref
+#calculate vc/va ref, va ref, and dm/va ref
 healthy_reference_vc <- healthy_reference_filtered |> mutate(
     vc_over_va_ref = 15.4 -
       0.972 * (sex == "M") -
@@ -34,7 +34,12 @@ healthy_reference_vc <- healthy_reference_filtered |> mutate(
       sex == "M",
       -7.9 + 0.0387 * `Age (years)` + 0.0774 * height - 0.000442 * `Age (years)`^2,
       -3.55 + 0.0391 * `Age (years)` + 0.0466 * height - 0.000426 * `Age (years)`^2
-    ))
+    ),
+    dm_over_va_ref = 31.8 +
+      2.21 * (sex == "M") -
+      0.151 * `Age (years)` -
+      0.0432 * height
+  )
 ```
 
 ```{r}
@@ -48,3 +53,56 @@ healthy_reference_vc |>
   )
 ```
 
+```{r}
+#summarize mean and sd for vc/va ref and va ref (separated by sex)
+healthy_reference_vc |> 
+  group_by(sex) |>
+  summarise(
+    vc_over_va_mean = mean(vc_over_va_ref, na.rm = TRUE),
+    vc_over_va_sd   = sd(vc_over_va_ref, na.rm = TRUE),
+    va_mean         = mean(va_ref, na.rm = TRUE),
+    va_sd           = sd(va_ref, na.rm = TRUE)
+  )
+```
+
+```{r}
+#summarize mean and sd for dm/va ref
+healthy_reference_vc |> 
+  summarise(
+    dm_over_va_mean = mean(dm_over_va_ref, na.rm = TRUE),
+    dm_over_va_sd   = sd(dm_over_va_ref, na.rm = TRUE)
+  )
+```
+
+```{r}
+#summarize mean and sd for dm/va ref (separated by sex)
+healthy_reference_vc |> 
+  group_by(sex) |>
+  summarise(
+    dm_over_va_mean = mean(dm_over_va_ref, na.rm = TRUE),
+    dm_over_va_sd   = sd(dm_over_va_ref, na.rm = TRUE)
+  )
+```
+
+```{r}
+#summarize mean and sd for age and height
+healthy_reference_vc |> 
+  summarise(
+    age_mean = mean(`Age (years)`, na.rm = TRUE),
+    age_sd   = sd(`Age (years)`, na.rm = TRUE),
+    height_mean         = mean(height, na.rm = TRUE),
+    height_sd           = sd(height, na.rm = TRUE)
+  )
+```
+
+```{r}
+#summarize mean and sd for age and height (separated by sex)
+healthy_reference_vc |> 
+  group_by(sex) |>
+  summarise(
+    age_mean = mean(`Age (years)`, na.rm = TRUE),
+    age_sd   = sd(`Age (years)`, na.rm = TRUE),
+    height_mean         = mean(height, na.rm = TRUE),
+    height_sd           = sd(height, na.rm = TRUE)
+  )
+```
