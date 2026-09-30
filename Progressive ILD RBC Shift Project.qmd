@@ -671,12 +671,15 @@ tyvaso_99_vc <- tyvaso_99 |>
     "006-108_s1",
     "006-108_s3"
   )) |>
-  mutate(ref_rbc_mean = case_when(
-    xe_dissolved_offset_frequency == 218 ~ 0.0049,
-    xe_dissolved_offset_frequency == 208 ~ 0.0048,
-    TRUE ~ NA_real_
-  )) |>
-  mutate(relative_vc = alveolar_volume * rbc_mean / 5.614594 / ref_rbc_mean) |>
+  mutate(ref_rbc_mean = 0.00455,
+  ) |>
+  mutate(rbc_mean = if_else(xe_dissolved_offset_frequency == 208, rbc_mean * 1.031, rbc_mean)) |>
+  mutate(vc = 13 * alveolar_volume * rbc_mean / ref_rbc_mean,
+         vc_ref = if_else(
+      sex == "M",
+      -23.8 + 0.645 * height - 0.00547 * age^2,
+      -13.8 + 0.527 * height - 0.00421 * age^2),
+      relative_vc = vc / vc_ref) |>
   filter(!is.na(relative_vc)) |>
   mutate(
     timepoint = case_when(
@@ -690,7 +693,7 @@ tyvaso_99_vc <- tyvaso_99 |>
     )
   ) |>
   relocate(timepoint, .after = 1) |>
-  mutate(subject = sub("_s[123]$", "", subject_id)) |>
+  mutate(subject = sub("_s[123]", "", subject_id)) |>
   relocate(subject, .after = 1) 
 ```
 
@@ -748,7 +751,7 @@ ggplot(tyvaso_99_vc,
     color = "black",
     linewidth = 1.5
   ) +
-  coord_cartesian(ylim = c(0, 0.9)) +
+  coord_cartesian(ylim = c(0, 1.1)) +
   theme_bw() +
   labs(
     title = "Tyvaso Relative VC Timepoints (99th percentile)",
@@ -768,7 +771,7 @@ ggplot(tyvaso_99_vc, aes(x = rbc_shift, y = relative_vc)) +
     title = "Relationship Between RBC Shift and Relative VC (99th percentile)"
   ) +
   theme_minimal() +
-  coord_cartesian(ylim = c(0, 0.9)) 
+  coord_cartesian(ylim = c(0, 1.1)) 
 ```
 
 ```{r}
@@ -792,12 +795,15 @@ tyvaso_ma_vc <- tyvaso_ma |>
     "006-108_s1_ma",
     "006-108_s3_ma"
   )) |>
-  mutate(ref_rbc_mean = case_when(
-    xe_dissolved_offset_frequency == 218 ~ 0.0049,
-    xe_dissolved_offset_frequency == 208 ~ 0.0048,
-    TRUE ~ NA_real_
-  )) |>
-  mutate(relative_vc = alveolar_volume * rbc_mean / 5.614594 / ref_rbc_mean) |>
+  mutate(ref_rbc_mean = 0.00455,
+  ) |>
+  mutate(rbc_mean = if_else(xe_dissolved_offset_frequency == 208, rbc_mean * 1.031, rbc_mean)) |>
+  mutate(vc = 13 * alveolar_volume * rbc_mean / ref_rbc_mean,
+         vc_ref = if_else(
+      sex == "M",
+      -23.8 + 0.645 * height - 0.00547 * age^2,
+      -13.8 + 0.527 * height - 0.00421 * age^2),
+      relative_vc = vc / vc_ref) |>
   filter(!is.na(relative_vc)) |>
   mutate(
     timepoint = case_when(
@@ -844,7 +850,7 @@ ggplot(tyvaso_ma_vc,
     color = "black",
     linewidth = 1.5
   ) +
-  coord_cartesian(ylim = c(0, 0.9)) +
+  coord_cartesian(ylim = c(0, 1.1)) +
   theme_bw() +
   labs(
     title = "Tyvaso Relative VC Timepoints (Mean Anchor)",
@@ -864,7 +870,7 @@ ggplot(tyvaso_ma_vc, aes(x = rbc_shift, y = relative_vc)) +
     title = "Relationship Between RBC Shift and Relative VC (Mean Anchor)"
   ) +
   theme_minimal() +
-  coord_cartesian(ylim = c(0, 0.9)) 
+  coord_cartesian(ylim = c(0, 1.1)) 
 ```
 
 ```{r}
@@ -888,12 +894,15 @@ tyvaso_ma_no_biasfieldkey_vc <- tyvaso_ma_no_biasfieldkey |>
     "006-108_s1_ma_no_biasfieldkey",
     "006-108_s3_ma_no_biasfieldkey"
   )) |>
-  mutate(ref_rbc_mean = case_when(
-    xe_dissolved_offset_frequency == 218 ~ 0.0049,
-    xe_dissolved_offset_frequency == 208 ~ 0.0048,
-    TRUE ~ NA_real_
-  )) |>
-  mutate(relative_vc = alveolar_volume * rbc_mean / 5.614594 / ref_rbc_mean) |>
+  mutate(ref_rbc_mean = 0.00455,
+  ) |>
+  mutate(rbc_mean = if_else(xe_dissolved_offset_frequency == 208, rbc_mean * 1.031, rbc_mean)) |>
+  mutate(vc = 13 * alveolar_volume * rbc_mean / ref_rbc_mean,
+         vc_ref = if_else(
+      sex == "M",
+      -23.8 + 0.645 * height - 0.00547 * age^2,
+      -13.8 + 0.527 * height - 0.00421 * age^2),
+      relative_vc = vc / vc_ref) |>
   filter(!is.na(relative_vc)) |>
   mutate(
     timepoint = case_when(
@@ -940,7 +949,7 @@ ggplot(tyvaso_ma_no_biasfieldkey_vc,
     color = "black",
     linewidth = 1.5
   ) +
-  coord_cartesian(ylim = c(0, 0.9)) +
+  coord_cartesian(ylim = c(0, 1)) +
   theme_bw() +
   labs(
     title = "Tyvaso Relative VC Timepoints (Mean Anchor No Biasfield Key)",
@@ -960,7 +969,7 @@ ggplot(tyvaso_ma_no_biasfieldkey_vc, aes(x = rbc_shift, y = relative_vc)) +
     title = "Relationship Between RBC Shift and Relative VC (Mean Anchor No Biasfield Key)"
   ) +
   theme_minimal() +
-  coord_cartesian(ylim = c(0, 0.9)) 
+  coord_cartesian(ylim = c(0, 1)) 
 ```
 
 ```{r}
