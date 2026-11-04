@@ -1,0 +1,340 @@
+---
+title: "Tyvaso ATS"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(openintro)
+library(janitor)
+```
+
+```{r}
+#Read In CSVs
+tyvaso_gx_ats <- read_csv("/Users/anuraganugu/Documents/tyvaso_gx_new.csv")
+tyvaso_spect_ats <- read_csv("/Users/anuraganugu/Documents/tyvaso_spect_new.csv")
+```
+
+```{r}
+tyvaso_combined_ats <- full_join(tyvaso_gx_ats, tyvaso_spect_ats, by = "subject_id")
+```
+
+```{r}
+#Create Timepoint and Subject Variable for gx and spect data and corrected oscillations
+tyvaso_combined_ats_transformed <- tyvaso_combined_ats |>
+  mutate(
+    timepoint = case_when(
+      str_detect(subject_id, "s1") ~ "Baseline",
+      str_detect(subject_id, "s2") ~ "15 Min",
+      str_detect(subject_id, "s3") ~ "3 Hours",
+    ),
+    timepoint = factor(
+      timepoint,
+      levels = c("Baseline", "15 Min", "3 Hours")
+    )
+  ) |>
+  relocate(timepoint, .after = 1) |>
+  mutate(subject = sub("_s[123]", "", subject_id)) |>
+  relocate(subject, .after = 1) |> 
+  mutate(f_corr = 10.5/((3.73/vc_rel) + 6.76),
+         corr_osc_amp_peaks = osc_amp_peaks * f_corr)
+```
+
+```{r}
+#Get rid of low snr subject
+tyvaso_combined_ats_spaghetti <- tyvaso_combined_ats_transformed|>
+  filter(!subject %in% c(
+    "006-108"))
+```
+
+```{r}
+#Create deltas for the variables
+tyvaso_delta <- tyvaso_combined_ats_spaghetti |>
+  group_by(subject) |>
+  mutate(
+    rbc_delta = rbc_shift - rbc_shift[timepoint == "Baseline"][1],
+    vc_rel_delta = vc_rel - vc_rel[timepoint == "Baseline"][1],
+    corr_osc_amp_delta = corr_osc_amp_peaks - corr_osc_amp_peaks[timepoint == "Baseline"][1]
+  ) |>
+  ungroup()
+```
+
+
+```{r}
+#Make spaghetti plot for timepoints and rbc shift
+ggplot(tyvaso_delta,
+       aes(x = timepoint,
+           y = rbc_delta,
+           group = subject,
+           color = subject)) +
+  geom_hline(yintercept = 0, color = "grey60", linetype = "dashed") +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1, linetype = "Cohort average (n=10)"),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c("Cohort average (n=10)" = "solid")
+  ) +
+  guides(color = "none") +
+  theme_bw() +
+  labs(
+    title = "RBC Shift Change from Baseline",
+    x = "",
+    y = "Change in RBC Shift (ppm)"
+  ) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+    plot.title = element_text(hjust = 0.5, size = 18),
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 18),
+    legend.position = "inside",
+    legend.position.inside = c(0.03, 0.97),
+    legend.justification = c(0, 1),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    legend.text = element_text(size = 13)
+  )
+```
+
+```{r}
+#Make spaghetti plot for timepoints and relative vc
+ggplot(tyvaso_delta,
+       aes(x = timepoint,
+           y = vc_rel_delta,
+           group = subject,
+           color = subject)) +
+  geom_hline(yintercept = 0, color = "grey60", linetype = "dashed") +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1, linetype = "Cohort average (n=10)"),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c("Cohort average (n=10)" = "solid")
+  ) +
+  guides(color = "none") +
+  theme_bw() +
+  labs(
+    title = expression("Relative V"[C] * " Change from Baseline"),
+    x = "",
+    y = expression("Change in Relative V"[C])
+  ) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+    plot.title = element_text(hjust = 0.5, size = 18),
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 18),
+    legend.position = "inside",
+    legend.position.inside = c(0.03, 0.97),
+    legend.justification = c(0, 1),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    legend.text = element_text(size = 13)
+  )
+```
+
+```{r}
+#Make spaghetti plot for timepoints and corrected oscillation
+ggplot(tyvaso_delta,
+       aes(x = timepoint,
+           y = corr_osc_amp_delta,
+           group = subject,
+           color = subject)) +
+  geom_hline(yintercept = 0, color = "grey60", linetype = "dashed") +
+  geom_line(alpha = 1) +
+  geom_point(alpha = 1) +
+  stat_summary(
+    aes(group = 1),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    linewidth = 1.5
+  ) +
+  theme_bw() +
+  labs(
+    title = "Corrected Oscillation Amplitude Change from Baseline",
+    x = "",
+    y = "Change in Corrected Oscillation Amplitude (%)"
+  ) + 
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+```{r}
+# Plot global variables
+ggplot(tyvaso_combined_ats_spaghetti, aes(x = vc_rel, y = rbc_shift)) +
+  geom_point(size = 2.3, color = "black") +
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    color = "#3B6B8F",
+    linewidth = 0.8
+  ) +
+  labs(
+    x = expression("Relative V"[C]),
+    y = "RBC Shift (ppm)",
+    title = expression("Relationship Between Relative V"[C] * " and RBC Shift")
+    ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  coord_cartesian()
+```
+
+```{r}
+#Get correlation coefficient
+cor.test(
+  tyvaso_combined_ats_spaghetti$vc_rel,
+  tyvaso_combined_ats_spaghetti$rbc_shift
+)
+```
+
+```{r}
+# Plot global variables
+ggplot(tyvaso_combined_ats_spaghetti, aes(x = vc_rel, y = corr_osc_amp_peaks)) +
+  geom_point(size = 2.3, color = "black") +
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    color = "#3B6B8F",
+    linewidth = 0.8
+  ) +
+  labs(
+    x = expression("Relative V"[C]),
+    y = "Corrected Oscillation Amplitude (%)",
+    title = expression("Relationship Between Relative V"[C] * " and Corrected Oscillation Amplitude")
+    ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  coord_cartesian()
+```
+
+```{r}
+#Get correlation coefficient
+cor.test(
+  tyvaso_combined_ats_spaghetti$vc_rel,
+  tyvaso_combined_ats_spaghetti$corr_osc_amp_peaks
+)
+```
+
+```{r}
+#Create delta vc rel
+tyvaso_combined_vc_wide <- tyvaso_combined_ats_spaghetti |>
+  select(subject, timepoint, vc_rel) |>
+  pivot_wider(
+    id_cols = subject,
+    names_from = timepoint,
+    values_from = vc_rel
+  ) |>
+  mutate(
+    delta_vc_rel = `15 Min` - Baseline,
+    delta_vc_rel_3hr = `3 Hours` - Baseline
+  )
+```
+
+```{r}
+#Get summary statistics for the delta_vc_rel
+tyvaso_combined_vc_wide|>
+  select(delta_vc_rel, delta_vc_rel_3hr) |>
+  summarize(
+    n = n(),
+    mean = mean(delta_vc_rel, na.rm = TRUE),
+    sd = sd(delta_vc_rel, na.rm = TRUE),
+    median = median(delta_vc_rel, na.rm = TRUE),
+    mean_3hr =mean(delta_vc_rel_3hr, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Create Q-Q plot to see if it follows a normal distribution
+qqnorm(tyvaso_combined_vc_wide$delta_vc_rel)
+qqline(tyvaso_combined_vc_wide$delta_vc_rel)
+```
+
+```{r}
+#paired t-test for 15 min where average change is comparaed to 0
+t.test(tyvaso_combined_vc_wide$delta_vc_rel, mu = 0)
+```
+
+```{r}
+#paired t-test for 3 hrs where average change is comparaed to 0
+t.test(tyvaso_combined_vc_wide$delta_vc_rel_3hr, mu = 0)
+```
+
+```{r}
+#mean and standard deviation of age
+tyvaso_combined_ats_spaghetti |>
+  summarize(
+    n = n(),
+    mean_age= mean(age, na.rm = TRUE),
+    sd_age = sd(age, na.rm = TRUE),
+  )
+```
+
+```{r}
+#Create delta rbc_shift
+tyvaso_combined_rbc_wide <- tyvaso_combined_ats_spaghetti |>
+  select(subject, timepoint, rbc_shift) |>
+  pivot_wider(
+    id_cols = subject,
+    names_from = timepoint,
+    values_from = rbc_shift
+  ) |>
+  mutate(
+    delta_rbc_shift = `15 Min` - Baseline,
+    delta_rbc_shift_3hr = `3 Hours` - Baseline
+  )
+```
+
+```{r}
+#Get summary statistics for the delta_vc_rel
+tyvaso_combined_rbc_wide|>
+  select(delta_rbc_shift, delta_rbc_shift_3hr) |>
+  summarize(
+    n = n(),
+    mean = mean(delta_rbc_shift, na.rm = TRUE),
+    sd = sd(delta_rbc_shift, na.rm = TRUE),
+    median = median(delta_rbc_shift, na.rm = TRUE),
+    mean_3hr =mean(delta_rbc_shift_3hr, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Create Q-Q plot to see if it follows a normal distribution
+qqnorm(tyvaso_combined_rbc_wide$delta_rbc_shift)
+qqline(tyvaso_combined_rbc_wide$delta_rbc_shift)
+```
+
+```{r}
+#paired t-test for 15 min where average change is comparaed to 0
+t.test(tyvaso_combined_rbc_wide$delta_rbc_shift, mu = 0)
+```
+
+```{r}
+#paired t-test for 3 hrs where average change is comparaed to 0
+t.test(tyvaso_combined_rbc_wide$delta_rbc_shift_3hr, mu = 0)
+```
